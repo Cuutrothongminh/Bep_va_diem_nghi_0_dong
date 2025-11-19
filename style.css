@@ -37,6 +37,21 @@ input[type="text"] {
   text-decoration: underline;
 }
 
+.call-btn {
+  display: inline-block;
+  background: #27ae60;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 5px;
+  text-decoration: none;
+  margin-left: 5px;
+  font-size: 14px;
+}
+
+.call-btn:hover {
+  opacity: 0.85;
+}
+
 @media (max-width: 600px) {
   body {
     padding: 10px;
