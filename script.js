@@ -14,9 +14,7 @@ async function loadCSV(url) {
   const header = rows[0].map(h => h.trim());
   const data = rows.slice(1).map(row => {
     let obj = {};
-    row.forEach((val, i) => {
-      obj[header[i]] = val ? val.trim() : "";
-    });
+    row.forEach((val, i) => obj[header[i]] = val ? val.trim() : "");
     return obj;
   });
   return data;
@@ -29,7 +27,6 @@ function normalizeGmapsLink(link) {
   if(!link) return "";
   link = link.trim();
   if(link.startsWith("http://") || link.startsWith("https://")) return link;
-  // Nếu link bắt đầu bằng www hoặc maps, thêm https://
   if(link.startsWith("www.") || link.startsWith("maps.")) return "https://" + link;
   return link;
 }
@@ -44,7 +41,6 @@ function renderTable(data, elementId) {
   }
 
   const container = document.getElementById(elementId);
-
   container.innerHTML = `
     <input type="text" class="form-control mb-2" placeholder="Tìm kiếm..." id="${elementId}-search">
     <table class="table table-bordered table-striped" id="${elementId}-table">
@@ -72,32 +68,46 @@ function renderTable(data, elementId) {
   const input = document.getElementById(`${elementId}-search`);
   input.addEventListener("input", function() {
     const filter = input.value.toLowerCase();
-    const trs = container.querySelectorAll("tbody tr");
-    trs.forEach(tr => {
-      const text = tr.innerText.toLowerCase();
-      tr.style.display = text.includes(filter) ? "" : "none";
+    container.querySelectorAll("tbody tr").forEach(tr => {
+      tr.style.display = tr.innerText.toLowerCase().includes(filter) ? "" : "none";
     });
   });
 }
 
 // ===============================
-// Map
+// Map + Cluster + Marker khác màu
 // ===============================
 function initMap(allPoints) {
   const map = L.map("map").setView([16.047, 108.206], 6);
+
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
+
+  const markers = L.markerClusterGroup();
 
   allPoints.forEach(p => {
     const lat = parseFloat(p.lat);
     const lng = parseFloat(p.lng);
-    if(!isNaN(lat) && !isNaN(lng)) {
-      const url = normalizeGmapsLink(p.gmaps_link);
-      const phone = p.phone || "";
-      const phoneLink = phone ? `<br><a href="tel:${phone}" class="call-btn">Gọi ngay</a>` : "";
-      const popupContent = `<b>${p.name}</b><br>${p.address || ""}${url ? `<br><a href="${url}" target="_blank">Xem bản đồ</a>` : ""}${phoneLink}`;
-      L.marker([lat,lng]).addTo(map).bindPopup(popupContent);
-    }
+    if(isNaN(lat) || isNaN(lng)) return;
+
+    const url = normalizeGmapsLink(p.gmaps_link);
+    const phoneLink = p.phone ? `<br><a href="tel:${p.phone}" class="call-btn">Gọi ngay</a>` : "";
+
+    const popupContent = `<b>${p.name}</b><br>${p.address || ""}${url ? `<br><a href="${url}" target="_blank">Xem bản đồ</a>` : ""}${phoneLink}`;
+
+    // Marker màu khác nhau
+    const icon = L.icon({
+      iconUrl: p.type === "bep" ? "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
+                                : "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
+      iconSize: [32, 32],
+      iconAnchor: [16, 32],
+      popupAnchor: [0, -32]
+    });
+
+    const marker = L.marker([lat,lng], {icon}).bindPopup(popupContent);
+    markers.addLayer(marker);
   });
+
+  map.addLayer(markers);
 }
 
 // ===============================
@@ -108,43 +118,22 @@ async function init() {
     const bepData = await loadCSV(CSV_URL_BEP);
     const diemData = await loadCSV(CSV_URL_DIEMNGHI);
 
-    // Chuẩn hóa cột gmaps_link và phone
+    // Chuẩn hóa cột gmaps_link và phone, gán type
     bepData.forEach(r => {
       r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || r["GoogleMap"] || r["gmaps_link"] || "");
       r.phone = r["SDT"] || r["Phone"] || "";
+      r.type = "bep";
     });
     diemData.forEach(r => {
       r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || r["GoogleMap"] || r["gmaps_link"] || "");
       r.phone = r["SDT"] || r["Phone"] || "";
+      r.type = "diemnghi";
     });
 
     renderTable(bepData, "table-bep");
     renderTable(diemData, "table-diemnghi");
 
-    const allPoints = [];
-
-    bepData.forEach(r => {
-      if(r.Lat && r.Lng) allPoints.push({
-        name: r.Ten || r.Name || "Bếp",
-        address: r.DiaChi || r.Address || "",
-        lat: r.Lat,
-        lng: r.Lng,
-        gmaps_link: r.gmaps_link,
-        phone: r.phone
-      });
-    });
-
-    diemData.forEach(r => {
-      if(r.Lat && r.Lng) allPoints.push({
-        name: r.Ten || r.Name || "Điểm nghỉ",
-        address: r.DiaChi || r.Address || "",
-        lat: r.Lat,
-        lng: r.Lng,
-        gmaps_link: r.gmaps_link,
-        phone: r.phone
-      });
-    });
-
+    const allPoints = [...bepData, ...diemData].filter(p => p.Lat && p.Lng);
     initMap(allPoints);
 
   } catch(e) {
