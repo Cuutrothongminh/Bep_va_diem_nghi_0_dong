@@ -3,37 +3,44 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bếp & Điểm Nghỉ 0 Đồng</title>
+  <title>Bếp 0 Đồng & Điểm Nghỉ Miễn Phí</title>
 
-  <!-- Bootstrap -->
+  <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
-  <!-- Leaflet -->
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
-    body { background: #f5f5f5; }
-    #map { height: 500px; width: 100%; }
-    .loading { text-align: center; padding: 20px; font-size: 20px; color: #777; }
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+    h2 { text-align: center; margin-bottom: 30px; }
+    #map { height: 500px; width: 100%; margin-bottom: 20px; }
+    input[type="text"] { margin-bottom: 10px; }
+    .table th, .table td { vertical-align: middle; }
+    .map-link { display: inline-block; margin-left: 5px; color: #e67e22; text-decoration: none; }
+    .map-link:hover { text-decoration: underline; }
+    @media (max-width: 600px) {
+      body { padding: 10px; }
+    }
   </style>
 </head>
 <body>
 
-<div class="container py-4">
+<div class="container">
 
-  <h2 class="mb-3 text-center">Bếp 0 Đồng & Điểm Nghỉ Miễn Phí</h2>
+  <h2>Bếp 0 Đồng & Điểm Nghỉ Miễn Phí</h2>
 
   <div id="map"></div>
 
   <hr>
 
-  <h4 class="mt-4">Danh sách Bếp 0 đồng</h4>
-  <div id="table-bep" class="loading">Đang tải dữ liệu...</div>
+  <h4>Bảng Bếp 0 Đồng</h4>
+  <div id="table-bep">Đang tải dữ liệu...</div>
 
   <hr>
 
-  <h4 class="mt-4">Danh sách Điểm nghỉ miễn phí</h4>
-  <div id="table-diemnghi" class="loading">Đang tải dữ liệu...</div>
+  <h4>Bảng Điểm Nghỉ Miễn Phí</h4>
+  <div id="table-diemnghi">Đang tải dữ liệu...</div>
 
 </div>
 
@@ -41,7 +48,131 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <!-- Script -->
-<script src="script.js"></script>
+<script>
+// ===============================
+// Link CSV (output=csv)
+// ===============================
+const CSV_URL_BEP = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGXNCIucm8_hAKXVIAWXxGkUDeY865wFUIrTwxTXEgA7USKi1ZJ7RAF4Mm0vT8ds2tc9mbFvtI64Uh/pub?output=csv&gid=0";
+const CSV_URL_DIEMNGHI = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGXNCIucm8_hAKXVIAWXxGkUDeY865wFUIrTwxTXEgA7USKi1ZJ7RAF4Mm0vT8ds2tc9mbFvtI64Uh/pub?output=csv&gid=332850820";
+
+// ===============================
+// Hàm đọc CSV
+// ===============================
+async function loadCSV(url) {
+  const res = await fetch(url);
+  const text = await res.text();
+  const rows = text.trim().split("\n").map(r => r.split(","));
+  const header = rows[0].map(h => h.trim());
+  const data = rows.slice(1).map(row => {
+    let obj = {};
+    row.forEach((val, i) => obj[header[i]] = val.trim());
+    return obj;
+  });
+  return data;
+}
+
+// ===============================
+// Hiển thị bảng + tìm kiếm nhanh
+// ===============================
+function renderTable(data, elementId) {
+  if (!data || data.length === 0) {
+    document.getElementById(elementId).innerHTML = "<p>Không có dữ liệu.</p>";
+    return;
+  }
+
+  const container = document.getElementById(elementId);
+
+  // Tìm kiếm nhanh
+  container.innerHTML = `
+    <input type="text" class="form-control mb-2" placeholder="Tìm kiếm..." id="${elementId}-search">
+    <table class="table table-bordered table-striped" id="${elementId}-table">
+      <thead>
+        <tr>${Object.keys(data[0]).map(h => `<th>${h}</th>`).join("")}</tr>
+      </thead>
+      <tbody>
+        ${data.map(row => `<tr>${Object.keys(row).map(h => {
+          // Nếu có link Google Maps thì hiển thị link
+          if(h.toLowerCase().includes("google") || h.toLowerCase().includes("map")) {
+            return `<td>${row[h] ? `<a href="${row[h]}" target="_blank" class="map-link">Xem bản đồ</a>` : ""}</td>`;
+          }
+          return `<td>${row[h] || ""}</td>`;
+        }).join("")}</tr>`).join("")}
+      </tbody>
+    </table>
+  `;
+
+  // Sự kiện tìm kiếm
+  const input = document.getElementById(`${elementId}-search`);
+  input.addEventListener("input", function() {
+    const filter = input.value.toLowerCase();
+    const trs = container.querySelectorAll("tbody tr");
+    trs.forEach(tr => {
+      const text = tr.innerText.toLowerCase();
+      tr.style.display = text.includes(filter) ? "" : "none";
+    });
+  });
+}
+
+// ===============================
+// Map
+// ===============================
+function initMap(allPoints) {
+  const map = L.map("map").setView([16.047, 108.206], 6);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
+
+  allPoints.forEach(p => {
+    const lat = parseFloat(p.lat);
+    const lng = parseFloat(p.lng);
+    if(!isNaN(lat) && !isNaN(lng)) {
+      const popupContent = `<b>${p.name}</b><br>${p.address || ""}${p.google_map ? `<br><a href="${p.google_map}" target="_blank">Xem bản đồ</a>` : ""}`;
+      L.marker([lat,lng]).addTo(map).bindPopup(popupContent);
+    }
+  });
+}
+
+// ===============================
+// Load dữ liệu & khởi chạy
+// ===============================
+async function init() {
+  try {
+    const bepData = await loadCSV(CSV_URL_BEP);
+    const diemData = await loadCSV(CSV_URL_DIEMNGHI);
+
+    renderTable(bepData, "table-bep");
+    renderTable(diemData, "table-diemnghi");
+
+    const allPoints = [];
+
+    bepData.forEach(r => {
+      if(r.Lat && r.Lng) allPoints.push({
+        name: r.Ten || r.Name || "Bếp",
+        address: r.DiaChi || r.Address || "",
+        lat: r.Lat,
+        lng: r.Lng,
+        google_map: r["Link Google Map"] || r.GoogleMap || ""
+      });
+    });
+
+    diemData.forEach(r => {
+      if(r.Lat && r.Lng) allPoints.push({
+        name: r.Ten || r.Name || "Điểm nghỉ",
+        address: r.DiaChi || r.Address || "",
+        lat: r.Lat,
+        lng: r.Lng,
+        google_map: r["Link Google Map"] || r.GoogleMap || ""
+      });
+    });
+
+    initMap(allPoints);
+
+  } catch(e) {
+    console.error(e);
+    alert("Không tải được dữ liệu. Kiểm tra link CSV!");
+  }
+}
+
+init();
+</script>
 
 </body>
 </html>
