@@ -23,7 +23,19 @@ async function loadCSV(url) {
 }
 
 // ===============================
-// Hiển thị bảng + tìm kiếm nhanh
+// Chuẩn hóa link Google Maps
+// ===============================
+function normalizeGmapsLink(link) {
+  if(!link) return "";
+  link = link.trim();
+  if(link.startsWith("http://") || link.startsWith("https://")) return link;
+  // Nếu link bắt đầu bằng www hoặc maps, thêm https://
+  if(link.startsWith("www.") || link.startsWith("maps.")) return "https://" + link;
+  return link;
+}
+
+// ===============================
+// Hiển thị bảng + tìm kiếm + nút gọi
 // ===============================
 function renderTable(data, elementId) {
   if (!data || data.length === 0) {
@@ -42,9 +54,14 @@ function renderTable(data, elementId) {
       <tbody>
         ${data.map(row => `<tr>${Object.keys(row).map(h => {
           const keyLower = h.toLowerCase();
-          // Nếu cột là link Google Map
+          // Link Google Map
           if(keyLower.includes("gmaps") || keyLower.includes("map")) {
-            return `<td>${row[h] ? `<a href="${row[h]}" target="_blank" class="map-link">Xem bản đồ</a>` : ""}</td>`;
+            const url = normalizeGmapsLink(row[h]);
+            return `<td>${url ? `<a href="${url}" target="_blank" class="map-link">Xem bản đồ</a>` : ""}</td>`;
+          }
+          // Số điện thoại
+          if(keyLower.includes("sdt") || keyLower.includes("phone")) {
+            return `<td>${row[h] ? `<a href="tel:${row[h]}" class="call-btn">Gọi ngay</a>` : ""}</td>`;
           }
           return `<td>${row[h] || ""}</td>`;
         }).join("")}</tr>`).join("")}
@@ -74,7 +91,10 @@ function initMap(allPoints) {
     const lat = parseFloat(p.lat);
     const lng = parseFloat(p.lng);
     if(!isNaN(lat) && !isNaN(lng)) {
-      const popupContent = `<b>${p.name}</b><br>${p.address || ""}${p.gmaps_link ? `<br><a href="${p.gmaps_link}" target="_blank">Xem bản đồ</a>` : ""}`;
+      const url = normalizeGmapsLink(p.gmaps_link);
+      const phone = p.phone || "";
+      const phoneLink = phone ? `<br><a href="tel:${phone}" class="call-btn">Gọi ngay</a>` : "";
+      const popupContent = `<b>${p.name}</b><br>${p.address || ""}${url ? `<br><a href="${url}" target="_blank">Xem bản đồ</a>` : ""}${phoneLink}`;
       L.marker([lat,lng]).addTo(map).bindPopup(popupContent);
     }
   });
@@ -88,12 +108,14 @@ async function init() {
     const bepData = await loadCSV(CSV_URL_BEP);
     const diemData = await loadCSV(CSV_URL_DIEMNGHI);
 
-    // Chuẩn hóa cột gmaps_link
+    // Chuẩn hóa cột gmaps_link và phone
     bepData.forEach(r => {
-      r.gmaps_link = r["Link Google Map"] || r["GoogleMap"] || r["gmaps_link"] || "";
+      r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || r["GoogleMap"] || r["gmaps_link"] || "");
+      r.phone = r["SDT"] || r["Phone"] || "";
     });
     diemData.forEach(r => {
-      r.gmaps_link = r["Link Google Map"] || r["GoogleMap"] || r["gmaps_link"] || "";
+      r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || r["GoogleMap"] || r["gmaps_link"] || "");
+      r.phone = r["SDT"] || r["Phone"] || "";
     });
 
     renderTable(bepData, "table-bep");
@@ -107,7 +129,8 @@ async function init() {
         address: r.DiaChi || r.Address || "",
         lat: r.Lat,
         lng: r.Lng,
-        gmaps_link: r.gmaps_link
+        gmaps_link: r.gmaps_link,
+        phone: r.phone
       });
     });
 
@@ -117,7 +140,8 @@ async function init() {
         address: r.DiaChi || r.Address || "",
         lat: r.Lat,
         lng: r.Lng,
-        gmaps_link: r.gmaps_link
+        gmaps_link: r.gmaps_link,
+        phone: r.phone
       });
     });
 
