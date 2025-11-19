@@ -14,7 +14,9 @@ async function loadCSV(url) {
   const header = rows[0].map(h => h.trim());
   const data = rows.slice(1).map(row => {
     let obj = {};
-    row.forEach((val, i) => obj[header[i]] = val.trim());
+    row.forEach((val, i) => {
+      obj[header[i]] = val ? val.trim() : "";
+    });
     return obj;
   });
   return data;
@@ -39,7 +41,9 @@ function renderTable(data, elementId) {
       </thead>
       <tbody>
         ${data.map(row => `<tr>${Object.keys(row).map(h => {
-          if(h.toLowerCase().includes("google") || h.toLowerCase().includes("map")) {
+          const keyLower = h.toLowerCase();
+          // Nếu cột là link Google Map
+          if(keyLower.includes("gmaps") || keyLower.includes("map")) {
             return `<td>${row[h] ? `<a href="${row[h]}" target="_blank" class="map-link">Xem bản đồ</a>` : ""}</td>`;
           }
           return `<td>${row[h] || ""}</td>`;
@@ -48,7 +52,6 @@ function renderTable(data, elementId) {
     </table>
   `;
 
-  // Tìm kiếm
   const input = document.getElementById(`${elementId}-search`);
   input.addEventListener("input", function() {
     const filter = input.value.toLowerCase();
@@ -71,7 +74,7 @@ function initMap(allPoints) {
     const lat = parseFloat(p.lat);
     const lng = parseFloat(p.lng);
     if(!isNaN(lat) && !isNaN(lng)) {
-      const popupContent = `<b>${p.name}</b><br>${p.address || ""}${p.google_map ? `<br><a href="${p.google_map}" target="_blank">Xem bản đồ</a>` : ""}`;
+      const popupContent = `<b>${p.name}</b><br>${p.address || ""}${p.gmaps_link ? `<br><a href="${p.gmaps_link}" target="_blank">Xem bản đồ</a>` : ""}`;
       L.marker([lat,lng]).addTo(map).bindPopup(popupContent);
     }
   });
@@ -85,6 +88,14 @@ async function init() {
     const bepData = await loadCSV(CSV_URL_BEP);
     const diemData = await loadCSV(CSV_URL_DIEMNGHI);
 
+    // Chuẩn hóa cột gmaps_link
+    bepData.forEach(r => {
+      r.gmaps_link = r["Link Google Map"] || r["GoogleMap"] || r["gmaps_link"] || "";
+    });
+    diemData.forEach(r => {
+      r.gmaps_link = r["Link Google Map"] || r["GoogleMap"] || r["gmaps_link"] || "";
+    });
+
     renderTable(bepData, "table-bep");
     renderTable(diemData, "table-diemnghi");
 
@@ -96,7 +107,7 @@ async function init() {
         address: r.DiaChi || r.Address || "",
         lat: r.Lat,
         lng: r.Lng,
-        google_map: r["Link Google Map"] || r.GoogleMap || ""
+        gmaps_link: r.gmaps_link
       });
     });
 
@@ -106,7 +117,7 @@ async function init() {
         address: r.DiaChi || r.Address || "",
         lat: r.Lat,
         lng: r.Lng,
-        google_map: r["Link Google Map"] || r.GoogleMap || ""
+        gmaps_link: r.gmaps_link
       });
     });
 
