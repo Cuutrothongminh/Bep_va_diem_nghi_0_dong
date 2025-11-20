@@ -62,7 +62,6 @@ function renderTable(data, elementId) {
     </table>
   `;
 
-  // Tìm kiếm nhanh
   const input = document.getElementById(`${elementId}-search`);
   input.addEventListener("input", () => {
     const filter = input.value.toLowerCase();
@@ -100,7 +99,7 @@ function initMap(allPoints) {
   });
 
   map.addLayer(markers);
-  map.fitBounds(markers.getBounds());
+  if (markers.getLayers().length) map.fitBounds(markers.getBounds());
 }
 
 // ====== KHỞI ĐỘNG ======
@@ -109,8 +108,8 @@ async function init() {
     const bepData = await loadCSV(CSV_URL_BEP);
     const diemData = await loadCSV(CSV_URL_DIEMNGHI);
 
-    bepData.forEach(r => { r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || r["gmaps_link"] || ""); r.phone = r["SDT"] || r["Phone"] || ""; r.type = "bep"; });
-    diemData.forEach(r => { r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || r["gmaps_link"] || ""); r.phone = r["SDT"] || r["Phone"] || ""; r.type = "diemnghi"; });
+    bepData.forEach(r => { r.Lat = r.Lat || r.lat; r.Lng = r.Lng || r.lng; r.phone = r["SDT"] || r["Phone"] || ""; r.type = "bep"; });
+    diemData.forEach(r => { r.Lat = r.Lat || r.lat; r.Lng = r.Lng || r.lng; r.phone = r["SDT"] || r["Phone"] || ""; r.type = "diemnghi"; });
 
     renderTable(bepData, "table-bep");
     renderTable(diemData, "table-diemnghi");
