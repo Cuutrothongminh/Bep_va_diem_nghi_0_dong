@@ -8,9 +8,9 @@ body {
 #map {
   height: 500px;
   width: 100%;
-  margin-bottom: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  margin-bottom: 20px;
 }
 
 .call-btn {
@@ -20,10 +20,8 @@ body {
   padding: 4px 8px;
   border-radius: 5px;
   text-decoration: none;
-  margin-right: 4px;
-  margin-top: 3px;
+  margin: 2px;
   font-size: 14px;
-  font-weight: bold;
 }
 
 .call-btn:hover {
@@ -33,9 +31,16 @@ body {
 .map-link {
   color: #e67e22;
   font-weight: bold;
-  text-decoration: none;
 }
 
 .map-link:hover {
   text-decoration: underline;
+}
+
+.table th, .table td {
+  vertical-align: middle;
+}
+
+input[type="text"] {
+  margin-bottom: 10px;
 }
