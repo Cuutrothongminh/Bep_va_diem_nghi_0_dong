@@ -1,34 +1,35 @@
-// ================== CONFIG CSV ================== //
+// ====== CONFIG ======
 const CSV_URL_BEP =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGXNCIucm8_hAKXVIAWXxGkUDeY865wFUIrTwxTXEgA7USKi1ZJ7RAF4Mm0vT8ds2tc9mbFvtI64Uh/pub?output=csv&gid=0";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGXNCIucm8_hAKXVIAWXxGkUDeY865wFUIrTwxTXEgA7USKi1ZJ7RAF4Mm0vT8ds2tc9mbFvtI64Uh/pub?gid=0&single=true&output=csv";
 
 const CSV_URL_DIEMNGHI =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGXNCIucm8_hAKXVIAWXxGkUDeY865wFUIrTwxTXEgA7USKi1ZJ7RAF4Mm0vT8ds2tc9mbFvtI64Uh/pub?output=csv&gid=332850820";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGXNCIucm8_hAKXVIAWXxGkUDeY865wFUIrTwxTXEgA7USKi1ZJ7RAF4Mm0vT8ds2tc9mbFvtI64Uh/pub?gid=332850820&single=true&output=csv";
 
 
-// ================== LOAD CSV ================== //
+// ====== HÀM ĐỌC CSV ======
 async function loadCSV(url) {
   const res = await fetch(url);
+  if (!res.ok) throw new Error("CSV load error: " + url);
+
   const text = await res.text();
 
-  // Tách CSV an toàn với dấu phẩy trong dấu ngoặc kép
   const rows = text.trim().split("\n").map(r =>
     r.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
   );
 
-  const header = rows[0].map(h => h.replace(/(^"|"$)/g, "").trim());
+  const header = rows[0].map(h => h.replace(/(^"|"$)/g, '').trim());
 
   return rows.slice(1).map(row => {
     let obj = {};
     row.forEach((val, i) => {
-      obj[header[i]] = val.replace(/(^"|"$)/g, "").trim();
+      obj[header[i]] = val.replace(/(^"|"$)/g, '').trim();
     });
     return obj;
   });
 }
 
 
-// ================== GOOGLE MAPS LINK ================== //
+// ====== CHUẨN HÓA LINK GOOGLE MAPS ======
 function normalizeGmapsLink(link) {
   if (!link) return "";
   link = link.trim();
@@ -37,52 +38,54 @@ function normalizeGmapsLink(link) {
 }
 
 
-// ================== TÁCH NHIỀU SỐ ĐIỆN THOẠI ================== //
-function createPhoneButtons(str) {
-  if (!str) return "";
+// ====== TÁCH SỐ ĐIỆN THOẠI ======
+function createPhoneButtons(phoneString) {
+  if (!phoneString) return "";
 
-  const nums = str.split(";")
-    .map(t => t.trim())
-    .filter(t => t.length > 0);
+  const numbers = phoneString.split(";")
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
 
-  return nums
-    .map(n => `<a class="call-btn" href="tel:${n}">${n}</a>`)
+  return numbers
+    .map(num => `<a href="tel:${num}" class="call-btn">${num}</a>`)
     .join("");
 }
 
 
-// ================== RENDER BẢNG ================== //
+// ====== RENDER BẢNG ======
 function renderTable(data, elementId) {
+  const container = document.getElementById(elementId);
   if (!data.length) {
-    document.getElementById(elementId).innerHTML = "Không có dữ liệu.";
+    container.innerHTML = "<p>Không có dữ liệu.</p>";
     return;
   }
 
-  const headers = Object.keys(data[0]);
+  // Loại bỏ trường type để tránh lặp
+  const headers = Object.keys(data[0]).filter(h => h.toLowerCase() !== "type");
 
-  document.getElementById(elementId).innerHTML = `
-    <input type="text" class="form-control" placeholder="Tìm kiếm..." id="${elementId}-search">
+  container.innerHTML = `
+    <input type="text" class="form-control mb-2" placeholder="Tìm kiếm..." id="${elementId}-search">
 
-    <table class="table table-bordered table-striped mt-2">
-      <thead>
-        <tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr>
-      </thead>
+    <table class="table table-bordered table-striped">
+      <thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>
       <tbody>
-        ${data.map(r => `
+        ${data.map(row => `
           <tr>
             ${headers.map(h => {
-
               const key = h.toLowerCase();
 
-              // số điện thoại
-              if (key.includes("sdt") || key.includes("phone"))
-                return `<td>${createPhoneButtons(r[h])}</td>`;
+              // Hiển thị link Google Maps
+              if (key.includes("map")) {
+                const url = normalizeGmapsLink(row[h]);
+                return `<td>${url ? `<a class="map-link" target="_blank" href="${url}">Xem bản đồ</a>` : ""}</td>`;
+              }
 
-              // Google Maps
-              if (key.includes("map"))
-                return `<td>${r[h] ? `<a target="_blank" class="map-link" href="${normalizeGmapsLink(r[h])}">Xem</a>` : ""}</td>`;
+              // Hiển thị nhiều số điện thoại
+              if (key.includes("sdt") || key.includes("phone")) {
+                return `<td>${createPhoneButtons(row[h])}</td>`;
+              }
 
-              return `<td>${r[h]}</td>`;
+              return `<td>${row[h]}</td>`;
             }).join("")}
           </tr>
         `).join("")}
@@ -90,70 +93,83 @@ function renderTable(data, elementId) {
     </table>
   `;
 
-  // Search live
-  const searchInput = document.getElementById(`${elementId}-search`);
-  searchInput.addEventListener("input", () => {
-    const filter = searchInput.value.toLowerCase();
-    document.querySelectorAll(`#${elementId} tbody tr`).forEach(tr => {
+  // Tìm kiếm nhanh
+  const input = document.getElementById(`${elementId}-search`);
+  input.addEventListener("input", () => {
+    const filter = input.value.toLowerCase();
+    container.querySelectorAll("tbody tr").forEach(tr => {
       tr.style.display = tr.innerText.toLowerCase().includes(filter) ? "" : "none";
     });
   });
 }
 
 
-// ================== MAP ================== //
+
+// ====== MAP ======
 function initMap(points) {
   const map = L.map("map").setView([16.047, 108.206], 6);
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-  const markerCluster = L.markerClusterGroup();
+  const cluster = L.markerClusterGroup();
 
   points.forEach(p => {
     const lat = parseFloat(p.Lat);
     const lng = parseFloat(p.Lng);
+    if (isNaN(lat) || isNaN(lng)) return;
 
-    if (!lat || !lng) return;
-
-    const phoneHTML = createPhoneButtons(p.SDT);
-    const mapURL = normalizeGmapsLink(p["Link Map"]);
+    const popup = `
+      <b>${p.Ten || p.Name}</b><br>
+      ${p.DiaChi || p.Address}<br>
+      <a target="_blank" href="${p.gmaps_link}">Xem bản đồ</a><br>
+      ${createPhoneButtons(p.phone)}
+    `;
 
     const icon = L.icon({
       iconUrl: p.type === "bep"
         ? "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
         : "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
       iconSize: [32, 32],
-      iconAnchor: [16, 32],
+      iconAnchor: [16, 32]
     });
 
-    markerCluster.addLayer(
-      L.marker([lat, lng], { icon }).bindPopup(`
-        <b>${p["Tên"]}</b><br>
-        ${p["Địa chỉ"]}<br>
-        ${mapURL ? `<a href="${mapURL}" target="_blank">Mở bản đồ</a>` : ""}
-        <br><br>
-        ${phoneHTML}
-      `)
+    cluster.addLayer(
+      L.marker([lat, lng], { icon }).bindPopup(popup)
     );
   });
 
-  map.addLayer(markerCluster);
+  map.addLayer(cluster);
 }
 
 
-// ================== MAIN ================== //
+
+// ====== MAIN ======
 async function init() {
-  const bepDataRaw = await loadCSV(CSV_URL_BEP);
-  const diemRaw = await loadCSV(CSV_URL_DIEMNGHI);
+  try {
+    const bep = await loadCSV(CSV_URL_BEP);
+    const diem = await loadCSV(CSV_URL_DIEMNGHI);
 
-  bepDataRaw.forEach(r => r.type = "bep");
-  diemRaw.forEach(r => r.type = "diemnghi");
+    bep.forEach(r => {
+      r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || "");
+      r.phone = r["SDT"] || "";
+      r.type = "bep";
+    });
 
-  renderTable(bepDataRaw, "table-bep");
-  renderTable(diemRaw, "table-diemnghi");
+    diem.forEach(r => {
+      r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || "");
+      r.phone = r["SDT"] || "";
+      r.type = "diemnghi";
+    });
 
-  const allPoints = [...bepDataRaw, ...diemRaw];
-  initMap(allPoints);
+    renderTable(bep, "table-bep");
+    renderTable(diem, "table-diemnghi");
+
+    initMap([...bep, ...diem]);
+
+  } catch (err) {
+    console.error(err);
+    alert("Không tải được dữ liệu!");
+  }
 }
 
 init();
