@@ -8,19 +8,28 @@ body {
 #map {
   height: 500px;
   width: 100%;
+  margin-bottom: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  margin-bottom: 20px;
+}
+
+.table th, .table td {
+  vertical-align: middle;
+}
+
+.map-link {
+  color: #e67e22;
+  font-weight: bold;
+  text-decoration: none;
 }
 
 .call-btn {
-  display: inline-block;
   background: #27ae60;
   color: white;
   padding: 4px 8px;
   border-radius: 5px;
   text-decoration: none;
-  margin: 2px;
+  margin-right: 5px;
   font-size: 14px;
 }
 
@@ -28,19 +37,6 @@ body {
   opacity: 0.85;
 }
 
-.map-link {
-  color: #e67e22;
-  font-weight: bold;
-}
-
-.map-link:hover {
-  text-decoration: underline;
-}
-
-.table th, .table td {
-  vertical-align: middle;
-}
-
-input[type="text"] {
-  margin-bottom: 10px;
+@media (max-width: 600px) {
+  #map { height: 400px; }
 }
