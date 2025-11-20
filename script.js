@@ -1,91 +1,91 @@
-// ====== CONFIG ======
+// ================= CONFIG =================
 const CSV_URL_BEP =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGXNCIucm8_hAKXVIAWXxGkUDeY865wFUIrTwxTXEgA7USKi1ZJ7RAF4Mm0vT8ds2tc9mbFvtI64Uh/pub?gid=0&single=true&output=csv";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGXNCIucm8_hAKXVIAWXxGkUDeY865wFUIrTwxTXEgA7USKi1ZJ7RAF4Mm0vT8ds2tc9mbFvtI64Uh/pub?output=csv&gid=0";
 
 const CSV_URL_DIEMNGHI =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGXNCIucm8_hAKXVIAWXxGkUDeY865wFUIrTwxTXEgA7USKi1ZJ7RAF4Mm0vT8ds2tc9mbFvtI64Uh/pub?gid=332850820&single=true&output=csv";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRGXNCIucm8_hAKXVIAWXxGkUDeY865wFUIrTwxTXEgA7USKi1ZJ7RAF4Mm0vT8ds2tc9mbFvtI64Uh/pub?output=csv&gid=332850820";
 
 
-// ====== HÀM ĐỌC CSV ======
+// ================= LOAD CSV =================
 async function loadCSV(url) {
   const res = await fetch(url);
-  if (!res.ok) throw new Error("CSV load error: " + url);
-
   const text = await res.text();
 
-  const rows = text.trim().split("\n").map(r =>
-    r.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
+  const rows = text.trim().split("\n").map(
+    r => r.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/)
   );
 
-  const header = rows[0].map(h => h.replace(/(^"|"$)/g, '').trim());
+  const header = rows[0].map(h => h.replace(/(^"|"$)/g, "").trim());
 
   return rows.slice(1).map(row => {
     let obj = {};
     row.forEach((val, i) => {
-      obj[header[i]] = val.replace(/(^"|"$)/g, '').trim();
+      obj[header[i]] = val.replace(/(^"|"$)/g, "").trim();
     });
     return obj;
   });
 }
 
 
-// ====== CHUẨN HÓA LINK GOOGLE MAPS ======
+// ================= FIX GOOGLE MAP LINKS =================
 function normalizeGmapsLink(link) {
   if (!link) return "";
   link = link.trim();
-  if (!/^https?:\/\//i.test(link)) link = "https://" + link;
-  return link;
+
+  // Nếu user copy từ GSheets đôi khi url bị encode → ta giữ nguyên
+  if (link.startsWith("http://") || link.startsWith("https://")) return link;
+
+  return "https://" + link;
 }
 
 
-// ====== TÁCH SỐ ĐIỆN THOẠI ======
+// ================= TÁCH SỐ ĐIỆN THOẠI =================
 function createPhoneButtons(phoneString) {
   if (!phoneString) return "";
 
-  const numbers = phoneString.split(";")
-    .map(s => s.trim())
-    .filter(s => s.length > 0);
-
-  return numbers
+  return phoneString
+    .split(";")
+    .map(p => p.trim())
+    .filter(p => p.length > 0)
     .map(num => `<a href="tel:${num}" class="call-btn">${num}</a>`)
-    .join("");
+    .join(" ");
 }
 
 
-// ====== RENDER BẢNG ======
+// ================= RENDER TABLE =================
 function renderTable(data, elementId) {
-  const container = document.getElementById(elementId);
-  if (!data.length) {
-    container.innerHTML = "<p>Không có dữ liệu.</p>";
-    return;
-  }
 
-  // Loại bỏ trường type để tránh lặp
-  const headers = Object.keys(data[0]).filter(h => h.toLowerCase() !== "type");
+  const headers = Object.keys(data[0]).filter(h =>
+    !["type"].includes(h.toLowerCase())
+  );
+
+  const container = document.getElementById(elementId);
 
   container.innerHTML = `
-    <input type="text" class="form-control mb-2" placeholder="Tìm kiếm..." id="${elementId}-search">
+    <input type="text" class="form-control" placeholder="Tìm kiếm..." id="${elementId}-search">
 
-    <table class="table table-bordered table-striped">
-      <thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>
+    <table class="table table-bordered table-striped" id="${elementId}-table">
+      <thead>
+        <tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr>
+      </thead>
       <tbody>
         ${data.map(row => `
           <tr>
             ${headers.map(h => {
               const key = h.toLowerCase();
 
-              // Hiển thị link Google Maps
+              // Google Map
               if (key.includes("map")) {
                 const url = normalizeGmapsLink(row[h]);
-                return `<td>${url ? `<a class="map-link" target="_blank" href="${url}">Xem bản đồ</a>` : ""}</td>`;
+                return `<td>${url ? `<a href="${url}" target="_blank" class="map-link">Xem bản đồ</a>` : ""}</td>`;
               }
 
-              // Hiển thị nhiều số điện thoại
+              // SDT
               if (key.includes("sdt") || key.includes("phone")) {
                 return `<td>${createPhoneButtons(row[h])}</td>`;
               }
 
-              return `<td>${row[h]}</td>`;
+              return `<td>${row[h] || ""}</td>`;
             }).join("")}
           </tr>
         `).join("")}
@@ -93,7 +93,7 @@ function renderTable(data, elementId) {
     </table>
   `;
 
-  // Tìm kiếm nhanh
+  // Live search
   const input = document.getElementById(`${elementId}-search`);
   input.addEventListener("input", () => {
     const filter = input.value.toLowerCase();
@@ -104,71 +104,66 @@ function renderTable(data, elementId) {
 }
 
 
+// ================= MAP =================
+function initMap(allPoints) {
+  const map = L.map("map").setView([16.05, 108.2], 6);
 
-// ====== MAP ======
-function initMap(points) {
-  const map = L.map("map").setView([16.047, 108.206], 6);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18
+  }).addTo(map);
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+  const markers = L.markerClusterGroup();
 
-  const cluster = L.markerClusterGroup();
+  allPoints.forEach(p => {
+    if (!p.Lat || !p.Lng) return;
 
-  points.forEach(p => {
     const lat = parseFloat(p.Lat);
     const lng = parseFloat(p.Lng);
     if (isNaN(lat) || isNaN(lng)) return;
 
     const popup = `
-      <b>${p.Ten || p.Name}</b><br>
-      ${p.DiaChi || p.Address}<br>
-      <a target="_blank" href="${p.gmaps_link}">Xem bản đồ</a><br>
+      <b>${p.Ten || p.Name || ""}</b><br>
+      ${p.DiaChi || p.Address || ""}<br>
+      <a href="${normalizeGmapsLink(p.gmaps_link)}" target="_blank">Xem bản đồ</a><br>
       ${createPhoneButtons(p.phone)}
     `;
 
-    const icon = L.icon({
-      iconUrl: p.type === "bep"
-        ? "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
-        : "https://maps.google.com/mapfiles/ms/icons/green-dot.png",
-      iconSize: [32, 32],
-      iconAnchor: [16, 32]
-    });
-
-    cluster.addLayer(
-      L.marker([lat, lng], { icon }).bindPopup(popup)
+    markers.addLayer(
+      L.marker([lat, lng]).bindPopup(popup)
     );
   });
 
-  map.addLayer(cluster);
+  map.addLayer(markers);
 }
 
 
-
-// ====== MAIN ======
+// ================= MAIN =================
 async function init() {
   try {
     const bep = await loadCSV(CSV_URL_BEP);
-    const diem = await loadCSV(CSV_URL_DIEMNGHI);
+    const nghi = await loadCSV(CSV_URL_DIEMNGHI);
 
     bep.forEach(r => {
-      r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || "");
-      r.phone = r["SDT"] || "";
+      r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || r["gmaps_link"]);
+      r.phone = r["SDT"] || r["Phone"];
       r.type = "bep";
     });
 
-    diem.forEach(r => {
-      r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || "");
-      r.phone = r["SDT"] || "";
+    nghi.forEach(r => {
+      r.gmaps_link = normalizeGmapsLink(r["Link Google Map"] || r["gmaps_link"]);
+      r.phone = r["SDT"] || r["Phone"];
       r.type = "diemnghi";
     });
 
     renderTable(bep, "table-bep");
-    renderTable(diem, "table-diemnghi");
+    renderTable(nghi, "table-diemnghi");
 
-    initMap([...bep, ...diem]);
+    const allPoints = [...bep, ...nghi];
+    initMap(allPoints);
 
   } catch (err) {
+    alert("Không tải được dữ liệu CSV!");
     console.error(err);
-    alert("Không tải được dữ liệu!");
   }
 }
 
